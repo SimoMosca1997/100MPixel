@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>10 Milioni di Pixel su Polygon</title>
+  <script src="https://cdn.jsdelivr.net/npm/web3@latest/dist/web3.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; }
+    body { overflow: hidden; font-family: Arial, sans-serif; text-align: center; }
+    canvas { display: block; background-color: white; cursor: crosshair; }
+    #info {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      background: rgba(255, 255, 255, 0.9);
+      padding: 10px;
+      border-radius: 5px;
+      display: none;
+    }
+    button { padding: 10px; font-size: 16px; cursor: pointer; margin: 5px; }
+  </style>
+</head>
+<body>
+
+  <div id="info">
+    <p>Seleziona i pixel e poi collega il wallet per acquistare.</p>
+    <button id="connectWallet">Connetti Wallet</button>
+    <button id="acquista" style="display:none;">Acquista con MATIC</button>
+  </div>
+
+  <canvas id="pixelCanvas"></canvas>
+
+  <script>
+    const canvas = document.getElementById("pixelCanvas");
+    const ctx = canvas.getContext("2d");
+    const infoBox = document.getElementById("info");
+    const connectWalletButton = document.getElementById("connectWallet");
+    const purchaseButton = document.getElementById("acquista");
+
+    let selectedPixels = [];
+    let userAddress = null;
+    let web3;
+    
+    // Indirizzo e ABI del contratto (modifica l'ABI in base alle tue funzioni)
+    const CONTRACT_ADDRESS = "0x5d934f4e2f797775e53561bB72aca21ba36B96BB";
+    const CONTRACT_ABI = [{"inputs":[{"internalType":"address","name":"_logic","type":"address"},{"internalType":"address","name":"admin_","type":"address"},{"internalType":"bytes","name":"_data","type":"bytes"}],"stateMutability":"payable","type":"constructor"},{"anonymous":false,"inputs":[{"indexed":false,"internalType":"address","name":"previousAdmin","type":"address"},{"indexed":false,"internalType":"address","name":"newAdmin","type":"address"}],"name":"AdminChanged","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"beacon","type":"address"}],"name":"BeaconUpgraded","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"implementation","type":"address"}],"name":"Upgraded","type":"event"},{"stateMutability":"payable","type":"fallback"},{"inputs":[],"name":"admin","outputs":[{"internalType":"address","name":"admin_","type":"address"}],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"address","name":"newAdmin","type":"address"}],"name":"changeAdmin","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[],"name":"implementation","outputs":[{"internalType":"address","name":"implementation_","type":"address"}],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"address","name":"newImplementation","type":"address"}],"name":"upgradeTo","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"address","name":"newImplementation","type":"address"},{"internalType":"bytes","name":"data","type":"bytes"}],"name":"upgradeToAndCall","outputs":[],"stateMutability":"payable","type":"function"},{"stateMutability":"payable","type":"receive"}];
+
+    let pixelStoreContract;
+
+    // Funzione per configurare automaticamente la rete Polygon
+    async function switchToPolygonNetwork() {
+      try {
+        await window.ethereum.request({
+          method: "wallet_addEthereumChain",
+          params: [
+            {
+              chainId: "0x89", // Polygon Mainnet
+              chainName: "Polygon Mainnet",
+              nativeCurrency: {
+                name: "MATIC",
+                symbol: "MATIC",
+                decimals: 18
+              },
+              rpcUrls: ["https://rpc-mainnet.maticvigil.com/"],
+              blockExplorerUrls: ["https://polygonscan.com/"]
+            }
+          ]
+        });
+      } catch (error) {
+        alert("Errore nella configurazione della rete Polygon: " + error.message);
+      }
+    }
+
+    // Funzione per connettersi a Metamask
+    async function connectWallet() {
+      if (window.ethereum) {
+        try {
+          await switchToPolygonNetwork();
+          web3 = new Web3(window.ethereum);
+          const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
+          userAddress = accounts[0];
+          pixelStoreContract = new web3.eth.Contract(CONTRACT_ABI, CONTRACT_ADDRESS);
+          alert("Wallet connesso: " + userAddress);
+          // Nascondi il pulsante di connessione e mostra il pulsante di acquisto
+          connectWalletButton.style.display = "none";
+          purchaseButton.style.display = "inline-block";
+        } catch (error) {
+          alert("Errore durante la connessione: " + error.message);
+        }
+      } else {
+        alert("Metamask non è installato. Scaricalo da https://metamask.io/");
+      }
+    }
+
+    connectWalletButton.addEventListener("click", connectWallet);
+
+    // Funzione per acquistare i pixel selezionati
+    purchaseButton.addEventListener("click", async () => {
+      if (!userAddress) {
+        alert("Connetti prima il tuo wallet!");
+        return;
+      }
+      if (selectedPixels.length === 0) {
+        alert("Seleziona almeno un pixel!");
+        return;
+      }
+      try {
+        // Itera su ogni pixel selezionato e invia la transazione
+        for (let pixel of selectedPixels) {
+          const [x, y] = pixel.split(",");
+          await pixelStoreContract.methods.buyPixel(parseInt(x), parseInt(y)).send({
+            from: userAddress,
+            value: web3.utils.toWei("0.1", "ether")
+          });
+        }
+        alert("Pixel acquistati con successo!");
+        selectedPixels = [];
+        updateUI();
+        drawGrid();
+      } catch (error) {
+        alert("Errore durante l'acquisto: " + error.message);
+      }
+    });
+
+    // Aggiorna l'interfaccia: mostra o nascondi la sezione info
+    function updateUI() {
+      if (selectedPixels.length > 0) {
+        infoBox.style.display = "block";
+        // Se il wallet non è ancora connesso, mostra il pulsante di connessione,
+        // altrimenti mostra il pulsante di acquisto.
+        if (!userAddress) {
+          connectWalletButton.style.display = "inline-block";
+          purchaseButton.style.display = "none";
+        } else {
+          connectWalletButton.style.display = "none";
+          purchaseButton.style.display = "inline-block";
+        }
+      } else {
+        infoBox.style.display = "none";
+      }
+    }
+
+    // Impostazioni canvas
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    const pixelSize = 10;
+
+    function drawGrid() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      for (let x = 0; x < canvas.width / pixelSize; x++) {
+        for (let y = 0; y < canvas.height / pixelSize; y++) {
+          ctx.strokeStyle = "#ddd";
+          ctx.strokeRect(x * pixelSize, y * pixelSize, pixelSize, pixelSize);
+          if (selectedPixels.includes(`${x},${y}`)) {
+            ctx.fillStyle = "blue";
+            ctx.fillRect(x * pixelSize, y * pixelSize, pixelSize, pixelSize);
+          }
+        }
+      }
+    }
+
+    drawGrid();
+
+    // Gestione della selezione dei pixel
+    canvas.addEventListener("click", (e) => {
+      const x = Math.floor(e.clientX / pixelSize);
+      const y = Math.floor(e.clientY / pixelSize);
+      const key = `${x},${y}`;
+      if (!selectedPixels.includes(key)) {
+        selectedPixels.push(key);
+      } else {
+        selectedPixels = selectedPixels.filter(p => p !== key);
+      }
+      updateUI();
+      drawGrid();
+    });
+  </script>
+
+</body>
+</html>
