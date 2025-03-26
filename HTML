@@ -42,13 +42,10 @@
     let userAddress = null;
     let web3;
     
-    // Indirizzo e ABI del contratto (modifica l'ABI in base alle tue funzioni)
     const CONTRACT_ADDRESS = "0x5d934f4e2f797775e53561bB72aca21ba36B96BB";
     const CONTRACT_ABI = [{"inputs":[{"internalType":"address","name":"_logic","type":"address"},{"internalType":"address","name":"admin_","type":"address"},{"internalType":"bytes","name":"_data","type":"bytes"}],"stateMutability":"payable","type":"constructor"},{"anonymous":false,"inputs":[{"indexed":false,"internalType":"address","name":"previousAdmin","type":"address"},{"indexed":false,"internalType":"address","name":"newAdmin","type":"address"}],"name":"AdminChanged","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"beacon","type":"address"}],"name":"BeaconUpgraded","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"implementation","type":"address"}],"name":"Upgraded","type":"event"},{"stateMutability":"payable","type":"fallback"},{"inputs":[],"name":"admin","outputs":[{"internalType":"address","name":"admin_","type":"address"}],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"address","name":"newAdmin","type":"address"}],"name":"changeAdmin","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[],"name":"implementation","outputs":[{"internalType":"address","name":"implementation_","type":"address"}],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"address","name":"newImplementation","type":"address"}],"name":"upgradeTo","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"address","name":"newImplementation","type":"address"},{"internalType":"bytes","name":"data","type":"bytes"}],"name":"upgradeToAndCall","outputs":[],"stateMutability":"payable","type":"function"},{"stateMutability":"payable","type":"receive"}];
-
     let pixelStoreContract;
 
-    // Funzione per configurare automaticamente la rete Polygon
     async function switchToPolygonNetwork() {
       try {
         await window.ethereum.request({
@@ -68,24 +65,26 @@
           ]
         });
       } catch (error) {
+        console.error("Errore nella configurazione della rete Polygon:", error.message);
         alert("Errore nella configurazione della rete Polygon: " + error.message);
       }
     }
 
-    // Funzione per connettersi a Metamask
     async function connectWallet() {
       if (window.ethereum) {
         try {
+          console.log("Tentativo di connessione al wallet...");
           await switchToPolygonNetwork();
           web3 = new Web3(window.ethereum);
           const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
           userAddress = accounts[0];
           pixelStoreContract = new web3.eth.Contract(CONTRACT_ABI, CONTRACT_ADDRESS);
+          console.log("Wallet connesso:", userAddress);
           alert("Wallet connesso: " + userAddress);
-          // Nascondi il pulsante di connessione e mostra il pulsante di acquisto
           connectWalletButton.style.display = "none";
           purchaseButton.style.display = "inline-block";
         } catch (error) {
+          console.error("Errore durante la connessione:", error.message);
           alert("Errore durante la connessione: " + error.message);
         }
       } else {
@@ -95,7 +94,6 @@
 
     connectWalletButton.addEventListener("click", connectWallet);
 
-    // Funzione per acquistare i pixel selezionati
     purchaseButton.addEventListener("click", async () => {
       if (!userAddress) {
         alert("Connetti prima il tuo wallet!");
@@ -106,7 +104,6 @@
         return;
       }
       try {
-        // Itera su ogni pixel selezionato e invia la transazione
         for (let pixel of selectedPixels) {
           const [x, y] = pixel.split(",");
           await pixelStoreContract.methods.buyPixel(parseInt(x), parseInt(y)).send({
@@ -119,16 +116,14 @@
         updateUI();
         drawGrid();
       } catch (error) {
+        console.error("Errore durante l'acquisto:", error.message);
         alert("Errore durante l'acquisto: " + error.message);
       }
     });
 
-    // Aggiorna l'interfaccia: mostra o nascondi la sezione info
     function updateUI() {
       if (selectedPixels.length > 0) {
         infoBox.style.display = "block";
-        // Se il wallet non è ancora connesso, mostra il pulsante di connessione,
-        // altrimenti mostra il pulsante di acquisto.
         if (!userAddress) {
           connectWalletButton.style.display = "inline-block";
           purchaseButton.style.display = "none";
@@ -141,7 +136,6 @@
       }
     }
 
-    // Impostazioni canvas
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
     const pixelSize = 10;
@@ -162,7 +156,6 @@
 
     drawGrid();
 
-    // Gestione della selezione dei pixel
     canvas.addEventListener("click", (e) => {
       const x = Math.floor(e.clientX / pixelSize);
       const y = Math.floor(e.clientY / pixelSize);
@@ -176,6 +169,9 @@
       drawGrid();
     });
   </script>
+
+</body>
+</html>
 
 </body>
 </html>
