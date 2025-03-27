@@ -2,16 +2,48 @@
 pragma solidity ^0.8.0;
 
 contract PixelStore {
-    uint256 public constant PIXEL_COST = 1 ether; // 1 MATIC rappresenta $1 (puoi usare un oracolo per aggiornare il prezzo se necessario)
-    uint256 public constant PIXEL_SIZE = 10; // Dimensione griglia, personalizzabile
+    uint256 public constant PIXEL_COST = 1 ether; // 1 MATIC rappresenta $1
+    uint256 public constant MIN_RESALE_PRICE = 2 ether; // Prezzo minimo di rivendita (2$)
+    uint256 public constant TRANSACTION_FEE = 1 ether; // Fee di 1$
+    uint256 public constant PIXEL_SIZE = 10; // Dimensione griglia
+    uint256 public constant MAX_STRING_LENGTH = 256; // Lunghezza massima per immagini e link
     address public owner;
 
-    mapping(uint256 => mapping(uint256 => address)) public pixelOwners; // Registra i proprietari di ciascun pixel
+    struct Pixel {
+        uint256 x; // Coordinate del pixel
+        uint256 y;
+        string color; // Colore del pixel
+        address currentOwner; // Proprietario attuale
+        uint256 price; // Prezzo di rivendita
+        string image; // Immagine in formato base64 o URL
+        string link; // Link a una pagina web
+    }
 
-    event PixelPurchased(address indexed buyer, uint256 x, uint256 y);
+    mapping(uint256 => mapping(uint256 => Pixel)) public pixels; // Mappa dei pixel
+
+    event PixelPurchased(address indexed buyer, uint256 x, uint256 y, uint256 price);
+    event PixelListedForSale(address indexed seller, uint256 x, uint256 y, uint256 price);
+    event PixelUpdated(uint256 x, uint256 y, string newColor);
+    event PixelImageUpdated(uint256 x, uint256 y, string newImage);
+    event PixelLinkUpdated(uint256 x, uint256 y, string newLink);
 
     modifier onlyOwner() {
         require(msg.sender == owner, "Solo il proprietario puo' fare questa operazione");
+        _;
+    }
+
+    modifier onlyPixelOwner(uint256 x, uint256 y) {
+        require(pixels[x][y].currentOwner == msg.sender, "Non sei il proprietario del pixel");
+        _;
+    }
+
+    modifier validCoordinates(uint256 x, uint256 y) {
+        require(x < PIXEL_SIZE && y < PIXEL_SIZE, "Coordinate fuori dai limiti");
+        _;
+    }
+
+    modifier validStringLength(string memory str) {
+        require(bytes(str).length <= MAX_STRING_LENGTH, "Stringa troppo lunga");
         _;
     }
 
@@ -19,19 +51,86 @@ contract PixelStore {
         owner = msg.sender; // L'indirizzo che distribuisce il contratto diventa il proprietario
     }
 
-    function buyPixel(uint256 x, uint256 y) external payable {
+    // Funzione per acquistare un nuovo pixel
+    function buyPixel(uint256 x, uint256 y, string memory color) 
+        external 
+        payable 
+        validCoordinates(x, y) 
+    {
         require(msg.value >= PIXEL_COST, "Invia almeno 1$ in MATIC");
-        require(pixelOwners[x][y] == address(0), "Pixel gia' acquistato");
+        require(pixels[x][y].currentOwner == address(0), "Pixel gia' acquistato");
 
-        pixelOwners[x][y] = msg.sender; // Registra il proprietario del pixel
-        emit PixelPurchased(msg.sender, x, y);
+        pixels[x][y] = Pixel(x, y, color, msg.sender, 0, "", ""); // Registra il proprietario e prezzo
+        emit PixelPurchased(msg.sender, x, y, PIXEL_COST);
     }
 
+    // Funzione per impostare il prezzo di rivendita
+    function listPixelForSale(uint256 x, uint256 y, uint256 price) 
+        external 
+        onlyPixelOwner(x, y) 
+        validCoordinates(x, y) 
+    {
+        require(price >= MIN_RESALE_PRICE, "Il prezzo di rivendita deve essere almeno 2$");
+
+        pixels[x][y].price = price; // Imposta il prezzo di rivendita
+        emit PixelListedForSale(msg.sender, x, y, price);
+    }
+
+    // Funzione per acquistare un pixel in vendita
+    function buyListedPixel(uint256 x, uint256 y) 
+        external 
+        payable 
+        validCoordinates(x, y) 
+    {
+        Pixel memory pixel = pixels[x][y];
+        require(pixel.currentOwner != address(0), "Pixel non disponibile");
+        require(pixel.price > 0, "Pixel non in vendita");
+        require(msg.value >= pixel.price + TRANSACTION_FEE, "Invia abbastanza MATIC per coprire prezzo e fee");
+
+        // Trasferisce il pagamento al venditore
+        payable(pixel.currentOwner).transfer(pixel.price);
+
+        // Aggiorna il proprietario del pixel e rimuove il prezzo di rivendita
+        pixels[x][y].currentOwner = msg.sender;
+        pixels[x][y].price = 0;
+
+        emit PixelPurchased(msg.sender, x, y, pixel.price);
+    }
+
+    // Funzione per aggiornare il colore di un pixel
+    function updatePixelColor(uint256 x, uint256 y, string memory newColor) 
+        external 
+        onlyPixelOwner(x, y) 
+        validCoordinates(x, y) 
+    {
+        pixels[x][y].color = newColor;
+        emit PixelUpdated(x, y, newColor);
+    }
+
+    // Funzione per caricare un'immagine su un pixel
+    function updatePixelImage(uint256 x, uint256 y, string memory newImage) 
+        external 
+        onlyPixelOwner(x, y) 
+        validCoordinates(x, y) 
+        validStringLength(newImage) 
+    {
+        pixels[x][y].image = newImage;
+        emit PixelImageUpdated(x, y, newImage);
+    }
+
+    // Funzione per aggiungere un link a un pixel
+    function updatePixelLink(uint256 x, uint256 y, string memory newLink) 
+        external 
+        onlyPixelOwner(x, y) 
+        validCoordinates(x, y) 
+        validStringLength(newLink) 
+    {
+        pixels[x][y].link = newLink;
+        emit PixelLinkUpdated(x, y, newLink);
+    }
+
+    // Funzione per prelevare i fondi accumulati nel contratto
     function withdraw() external onlyOwner {
-        payable(owner).transfer(address(this).balance); // Il proprietario può ritirare i fondi accumulati
-    }
-
-    function checkOwnership(uint256 x, uint256 y) external view returns (address) {
-        return pixelOwners[x][y]; // Controlla il proprietario di un pixel
+        payable(owner).transfer(address(this).balance);
     }
 }
