@@ -1,0 +1,37 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+contract PixelStore {
+    uint256 public constant PIXEL_COST = 1 ether; // 1 MATIC rappresenta $1 (puoi usare un oracolo per aggiornare il prezzo se necessario)
+    uint256 public constant PIXEL_SIZE = 10; // Dimensione griglia, personalizzabile
+    address public owner;
+
+    mapping(uint256 => mapping(uint256 => address)) public pixelOwners; // Registra i proprietari di ciascun pixel
+
+    event PixelPurchased(address indexed buyer, uint256 x, uint256 y);
+
+    modifier onlyOwner() {
+        require(msg.sender == owner, "Solo il proprietario puo' fare questa operazione");
+        _;
+    }
+
+    constructor() {
+        owner = msg.sender; // L'indirizzo che distribuisce il contratto diventa il proprietario
+    }
+
+    function buyPixel(uint256 x, uint256 y) external payable {
+        require(msg.value >= PIXEL_COST, "Invia almeno 1$ in MATIC");
+        require(pixelOwners[x][y] == address(0), "Pixel gia' acquistato");
+
+        pixelOwners[x][y] = msg.sender; // Registra il proprietario del pixel
+        emit PixelPurchased(msg.sender, x, y);
+    }
+
+    function withdraw() external onlyOwner {
+        payable(owner).transfer(address(this).balance); // Il proprietario può ritirare i fondi accumulati
+    }
+
+    function checkOwnership(uint256 x, uint256 y) external view returns (address) {
+        return pixelOwners[x][y]; // Controlla il proprietario di un pixel
+    }
+}
