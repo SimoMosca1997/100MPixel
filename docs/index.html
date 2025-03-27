@@ -3,160 +3,173 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Pixel Art Dapp</title>
+  <title>Pixel Art Zoomable</title>
   <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
-
     body {
-      font-family: Arial, sans-serif;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      height: 100vh;
-      background-color: #f9f9f9;
+      margin: 0;
+      overflow: hidden;
     }
 
     canvas {
       display: block;
-      border: 2px solid #ccc;
-      margin-bottom: 20px;
+      background-color: #f0f0f0;
     }
 
-    #info {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
+    #controls {
+      position: fixed;
+      top: 10px;
+      left: 10px;
       background: rgba(255, 255, 255, 0.9);
       padding: 15px;
       border-radius: 8px;
       box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-      width: 90%;
-      max-width: 500px;
     }
 
-    #info input, #info button {
-      margin: 10px 0;
-      padding: 10px;
-      border-radius: 4px;
-      border: 1px solid #ccc;
-      width: 100%;
-    }
-
-    #info button {
-      background-color: #007bff;
-      color: white;
-      border: none;
-      cursor: pointer;
-    }
-
-    #info button:hover {
-      background-color: #0056b3;
+    #controls input {
+      margin: 5px 0;
     }
   </style>
 </head>
 <body>
   <canvas id="canvas"></canvas>
-  <div id="info">
-    <div>
-      <label for="xCoord">X Coordinate:</label>
-      <input type="number" id="xCoord" placeholder="0">
-      <label for="yCoord">Y Coordinate:</label>
-      <input type="number" id="yCoord" placeholder="0">
-    </div>
-    <button id="goToCoordinates">Go to Coordinates</button>
-    <div>
-      <label for="imageUrl">Image URL:</label>
-      <input type="text" id="imageUrl" placeholder="Enter image URL">
-    </div>
-    <button id="savePixelData">Save Pixel Data</button>
+  <div id="controls">
+    <input type="file" id="uploadImage" accept="image/*">
+    <button id="confirmSelection">Confirm Selection</button>
   </div>
 
   <script>
-    const canvas = document.getElementById("canvas");
-    const ctx = canvas.getContext("2d");
-    const goToCoordinatesButton = document.getElementById("goToCoordinates");
-    const savePixelDataButton = document.getElementById("savePixelData");
-    const xCoordInput = document.getElementById("xCoord");
-    const yCoordInput = document.getElementById("yCoord");
-    const imageUrlInput = document.getElementById("imageUrl");
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const uploadImageInput = document.getElementById('uploadImage');
+    const confirmSelectionButton = document.getElementById('confirmSelection');
 
-    const gridSize = 10; // 10x10 griglia
-    const pixelSize = Math.floor(window.innerWidth / gridSize); // Dimensione pixel calcolata
-    canvas.width = gridSize * pixelSize;
-    canvas.height = gridSize * pixelSize;
+    const gridSize = 1000;
+    const pixelSize = 10; // Initial pixel size
+    let scale = 1;
+    let offsetX = 0;
+    let offsetY = 0;
+    const selectedPixels = new Set();
+    const pixelData = {};
 
-    const pixelData = {}; // Dati per i pixel
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
 
-    // Disegna la griglia e le immagini
     function drawGrid() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.strokeStyle = "#ddd";
+      ctx.save();
+      ctx.translate(offsetX, offsetY);
+      ctx.scale(scale, scale);
 
       for (let x = 0; x < gridSize; x++) {
         for (let y = 0; y < gridSize; y++) {
           const key = `${x},${y}`;
-          ctx.strokeRect(x * pixelSize, y * pixelSize, pixelSize, pixelSize);
 
-          if (pixelData[key] && pixelData[key].image) {
+          if (pixelData[key]?.image) {
             const img = new Image();
             img.src = pixelData[key].image;
             img.onload = () => {
               ctx.drawImage(img, x * pixelSize, y * pixelSize, pixelSize, pixelSize);
             };
+          } else {
+            ctx.fillStyle = selectedPixels.has(key) ? '#ffcccb' : '#ffffff';
+            ctx.fillRect(x * pixelSize, y * pixelSize, pixelSize, pixelSize);
           }
+
+          ctx.strokeStyle = '#ddd';
+          ctx.strokeRect(x * pixelSize, y * pixelSize, pixelSize, pixelSize);
         }
       }
+
+      ctx.restore();
     }
 
-    // Salva i dati del pixel
-    function savePixelData() {
-      const x = parseInt(xCoordInput.value, 10);
-      const y = parseInt(yCoordInput.value, 10);
+    function getMousePosition(event) {
+      const rect = canvas.getBoundingClientRect();
+      const x = Math.floor((event.clientX - rect.left - offsetX) / (pixelSize * scale));
+      const y = Math.floor((event.clientY - rect.top - offsetY) / (pixelSize * scale));
+      return { x, y };
+    }
 
-      if (x < 0 || x >= gridSize || y < 0 || y >= gridSize) {
-        alert("Coordinates out of bounds!");
-        return;
-      }
-
+    canvas.addEventListener('click', (event) => {
+      const { x, y } = getMousePosition(event);
       const key = `${x},${y}`;
-      const imageUrl = imageUrlInput.value.trim();
 
-      if (!imageUrl) {
-        alert("Please provide a valid image URL!");
-        return;
+      if (!pixelData[key]?.image) {
+        if (selectedPixels.has(key)) {
+          selectedPixels.delete(key);
+        } else {
+          selectedPixels.add(key);
+        }
+        drawGrid();
       }
+    });
 
-      pixelData[key] = {
-        image: imageUrl,
-      };
+    let isDragging = false;
+    let startX, startY;
+
+    canvas.addEventListener('mousedown', (event) => {
+      isDragging = true;
+      startX = event.clientX;
+      startY = event.clientY;
+    });
+
+    canvas.addEventListener('mousemove', (event) => {
+      if (isDragging) {
+        offsetX += event.clientX - startX;
+        offsetY += event.clientY - startY;
+        startX = event.clientX;
+        startY = event.clientY;
+        drawGrid();
+      }
+    });
+
+    canvas.addEventListener('mouseup', () => {
+      isDragging = false;
+    });
+
+    canvas.addEventListener('wheel', (event) => {
+      event.preventDefault();
+      const zoomSpeed = 0.001;
+      const zoom = Math.exp(-event.deltaY * zoomSpeed);
+
+      scale *= zoom;
+
+      const rect = canvas.getBoundingClientRect();
+      const mouseX = event.clientX - rect.left;
+      const mouseY = event.clientY - rect.top;
+
+      offsetX -= (mouseX - offsetX) * (zoom - 1);
+      offsetY -= (mouseY - offsetY) * (zoom - 1);
 
       drawGrid();
-      alert(`Image saved at (${x}, ${y})`);
-    }
+    });
 
-    // Spostarsi su una coordinata specifica
-    function goToCoordinates() {
-      const x = parseInt(xCoordInput.value, 10);
-      const y = parseInt(yCoordInput.value, 10);
+    confirmSelectionButton.addEventListener('click', () => {
+      const file = uploadImageInput.files[0];
 
-      if (x < 0 || x >= gridSize || y < 0 || y >= gridSize) {
-        alert("Coordinates out of bounds!");
+      if (!file) {
+        alert('Please upload an image first.');
         return;
       }
 
-      alert(`Moved to (${x}, ${y}).`);
-    }
+      const reader = new FileReader();
+      reader.onload = () => {
+        const imageUrl = reader.result;
+        selectedPixels.forEach((key) => {
+          pixelData[key] = { image: imageUrl };
+        });
+        selectedPixels.clear();
+        drawGrid();
+      };
+      reader.readAsDataURL(file);
+    });
 
-    // Event listeners
-    savePixelDataButton.addEventListener("click", savePixelData);
-    goToCoordinatesButton.addEventListener("click", goToCoordinates);
+    window.addEventListener('resize', () => {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      drawGrid();
+    });
 
-    // Disegna la griglia iniziale
     drawGrid();
   </script>
 </body>
