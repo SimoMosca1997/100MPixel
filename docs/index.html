@@ -19,6 +19,7 @@
     canvas {
       display: block;
       background-color: #f0f0f0;
+      cursor: grab;
     }
 
     #modal {
@@ -62,6 +63,7 @@
     <input type="text" id="imageUrl" placeholder="Enter image URL">
     <input type="text" id="linkUrl" placeholder="Enter link URL (optional)">
     <button id="saveButton">Save</button>
+    <button id="deleteButton">Delete</button>
   </div>
 
   <script>
@@ -72,18 +74,21 @@
     const imageUrlInput = document.getElementById("imageUrl");
     const linkUrlInput = document.getElementById("linkUrl");
     const saveButton = document.getElementById("saveButton");
+    const deleteButton = document.getElementById("deleteButton");
 
-    let gridWidth, gridHeight;
-    let pixelSize = 50; // Size of each pixel
+    let pixelSize = 20; // Smaller pixel size for more squares
     let pixelData = JSON.parse(localStorage.getItem("pixelData")) || {}; // Load saved data
-    let selectedPixel = null;
+    let selectedPixels = new Set();
+    let offsetX = 0;
+    let offsetY = 0;
+    let scale = 1;
+    let isDragging = false;
+    let dragStart = { x: 0, y: 0 };
 
     // Resize canvas to fit screen
     function resizeCanvas() {
       canvas.width = window.innerWidth;
       canvas.height = window.innerHeight;
-      gridWidth = Math.ceil(canvas.width / pixelSize);
-      gridHeight = Math.ceil(canvas.height / pixelSize);
       drawGrid();
     }
 
@@ -93,35 +98,115 @@
     function drawGrid() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      for (let x = 0; x < gridWidth; x++) {
-        for (let y = 0; y < gridHeight; y++) {
+      const gridWidth = Math.ceil(canvas.width / pixelSize / scale);
+      const gridHeight = Math.ceil(canvas.height / pixelSize / scale);
+
+      for (let x = -Math.ceil(offsetX / pixelSize); x < gridWidth - Math.ceil(offsetX / pixelSize); x++) {
+        for (let y = -Math.ceil(offsetY / pixelSize); y < gridHeight - Math.ceil(offsetY / pixelSize); y++) {
           const key = `${x},${y}`;
           ctx.strokeStyle = "#ddd";
-          ctx.strokeRect(x * pixelSize, y * pixelSize, pixelSize, pixelSize);
+          ctx.strokeRect(
+            (x * pixelSize + offsetX) * scale,
+            (y * pixelSize + offsetY) * scale,
+            pixelSize * scale,
+            pixelSize * scale
+          );
+
+          // Highlight selected pixels
+          if (selectedPixels.has(key)) {
+            ctx.fillStyle = "rgba(0, 0, 255, 0.3)";
+            ctx.fillRect(
+              (x * pixelSize + offsetX) * scale,
+              (y * pixelSize + offsetY) * scale,
+              pixelSize * scale,
+              pixelSize * scale
+            );
+          }
 
           // Draw saved image if exists
           if (pixelData[key]) {
             const img = new Image();
             img.src = pixelData[key].image;
             img.onload = () => {
-              ctx.drawImage(img, x * pixelSize, y * pixelSize, pixelSize, pixelSize);
+              ctx.drawImage(
+                img,
+                (x * pixelSize + offsetX) * scale,
+                (y * pixelSize + offsetY) * scale,
+                pixelSize * scale,
+                pixelSize * scale
+              );
             };
           }
         }
       }
     }
 
+    // Handle zoom
+    canvas.addEventListener("wheel", (event) => {
+      event.preventDefault();
+      const zoomFactor = 0.1;
+      const direction = event.deltaY > 0 ? -1 : 1;
+
+      scale += direction * zoomFactor;
+      scale = Math.max(0.1, Math.min(scale, 10)); // Clamp scale
+      drawGrid();
+    });
+
+    // Handle drag
+    canvas.addEventListener("mousedown", (event) => {
+      isDragging = true;
+      dragStart = { x: event.clientX, y: event.clientY };
+      canvas.style.cursor = "grabbing";
+    });
+
+    canvas.addEventListener("mousemove", (event) => {
+      if (isDragging) {
+        offsetX += (event.clientX - dragStart.x) / scale;
+        offsetY += (event.clientY - dragStart.y) / scale;
+        dragStart = { x: event.clientX, y: event.clientY };
+        drawGrid();
+      }
+    });
+
+    canvas.addEventListener("mouseup", () => {
+      isDragging = false;
+      canvas.style.cursor = "grab";
+    });
+
+    canvas.addEventListener("mouseleave", () => {
+      isDragging = false;
+      canvas.style.cursor = "grab";
+    });
+
+    // Handle click on canvas for selection
+    canvas.addEventListener("click", (event) => {
+      const x = Math.floor((event.offsetX / scale - offsetX) / pixelSize);
+      const y = Math.floor((event.offsetY / scale - offsetY) / pixelSize);
+      const key = `${x},${y}`;
+
+      if (event.shiftKey) {
+        if (selectedPixels.has(key)) {
+          selectedPixels.delete(key);
+        } else {
+          selectedPixels.add(key);
+        }
+      } else {
+        selectedPixels.clear();
+        selectedPixels.add(key);
+      }
+
+      drawGrid();
+    });
+
     // Open modal to edit pixel
-    function openModal(x, y) {
-      selectedPixel = { x, y };
+    function openModal() {
       modal.style.display = "flex";
-      imageUrlInput.value = pixelData[`${x},${y}`]?.image || "";
-      linkUrlInput.value = pixelData[`${x},${y}`]?.link || "";
+      imageUrlInput.value = "";
+      linkUrlInput.value = "";
     }
 
     // Save pixel data
     function savePixelData() {
-      const { x, y } = selectedPixel;
       const imageUrl = imageUrlInput.value.trim();
       const linkUrl = linkUrlInput.value.trim();
 
@@ -130,26 +215,30 @@
         return;
       }
 
-      pixelData[`${x},${y}`] = { image: imageUrl, link: linkUrl };
+      selectedPixels.forEach((key) => {
+        pixelData[key] = { image: imageUrl, link: linkUrl };
+      });
+
       localStorage.setItem("pixelData", JSON.stringify(pixelData));
 
       modal.style.display = "none";
       drawGrid();
     }
 
-    // Handle click on canvas
-    canvas.addEventListener("click", (event) => {
-      const x = Math.floor(event.offsetX / pixelSize);
-      const y = Math.floor(event.offsetY / pixelSize);
+    // Delete pixel data
+    function deletePixelData() {
+      selectedPixels.forEach((key) => {
+        delete pixelData[key];
+      });
 
-      if (pixelData[`${x},${y}`]?.link) {
-        window.open(pixelData[`${x},${y}`].link, "_blank");
-      } else {
-        openModal(x, y);
-      }
-    });
+      localStorage.setItem("pixelData", JSON.stringify(pixelData));
+
+      modal.style.display = "none";
+      drawGrid();
+    }
 
     saveButton.addEventListener("click", savePixelData);
+    deleteButton.addEventListener("click", deletePixelData);
 
     // Initial setup
     resizeCanvas();
