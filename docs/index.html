@@ -125,8 +125,9 @@
 
           // Draw saved image if exists
           if (pixelData[key]) {
+            const { image, link } = pixelData[key];
             const img = new Image();
-            img.src = pixelData[key].image;
+            img.src = image;
             img.onload = () => {
               ctx.drawImage(
                 img,
@@ -136,6 +137,17 @@
                 pixelSize * scale
               );
             };
+
+            // Add clickable functionality
+            if (link) {
+              canvas.addEventListener("click", (event) => {
+                const clickedX = Math.floor((event.offsetX / scale - offsetX) / pixelSize);
+                const clickedY = Math.floor((event.offsetY / scale - offsetY) / pixelSize);
+                if (key === `${clickedX},${clickedY}`) {
+                  window.open(link, "_blank");
+                }
+              });
+            }
           }
         }
       }
@@ -236,14 +248,12 @@
       const img = new Image();
       img.src = imageUrl;
       img.onload = () => {
-        const areaWidth = (maxX - minX + 1) * pixelSize * scale;
-        const areaHeight = (maxY - minY + 1) * pixelSize * scale;
         ctx.drawImage(
           img,
           (minX * pixelSize + offsetX) * scale,
           (minY * pixelSize + offsetY) * scale,
-          areaWidth,
-          areaHeight
+          (maxX - minX + 1) * pixelSize * scale,
+          (maxY - minY + 1) * pixelSize * scale
         );
         localStorage.setItem("pixelData", JSON.stringify(pixelData));
       };
