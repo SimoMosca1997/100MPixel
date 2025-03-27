@@ -131,16 +131,26 @@
       const totalCost = web3.utils.toBN(pricePerPixel).mul(web3.utils.toBN(selectedPixels.length));
 
       try {
-        await pixelStoreContract.methods.buyPixels(selectedPixels).send({
-          from: account,
-          value: totalCost
-        });
+        console.log("Selected pixels:", selectedPixels);
+        console.log("Account:", account);
+        console.log("Total cost:", totalCost.toString());
+
+        for (const pixel of selectedPixels) {
+          const [x, y] = pixel.split(",").map(Number);
+
+          console.log(`Purchasing pixel at (${x}, ${y}) for ${pricePerPixel} wei`);
+          await pixelStoreContract.methods.buyPixel(x, y, "red").send({
+            from: account,
+            value: pricePerPixel
+          });
+        }
+
         alert("Pixels purchased successfully!");
         selectedPixels = [];
         selectedPixelsDisplay.textContent = selectedPixels.length;
         drawGrid();
       } catch (error) {
-        console.error("Error purchasing pixels:", error);
+        console.error("Error purchasing pixels:", error.message);
       }
     }
 
@@ -149,4 +159,5 @@
   </script>
 </body>
 </html>
+
 
