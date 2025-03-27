@@ -236,12 +236,14 @@
       const img = new Image();
       img.src = imageUrl;
       img.onload = () => {
+        const areaWidth = (maxX - minX + 1) * pixelSize * scale;
+        const areaHeight = (maxY - minY + 1) * pixelSize * scale;
         ctx.drawImage(
           img,
           (minX * pixelSize + offsetX) * scale,
           (minY * pixelSize + offsetY) * scale,
-          (maxX - minX + 1) * pixelSize * scale,
-          (maxY - minY + 1) * pixelSize * scale
+          areaWidth,
+          areaHeight
         );
         localStorage.setItem("pixelData", JSON.stringify(pixelData));
       };
