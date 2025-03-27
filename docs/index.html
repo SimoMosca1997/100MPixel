@@ -5,34 +5,46 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Pixel Art Dapp</title>
   <style>
-    body {
+    * {
       margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
       font-family: Arial, sans-serif;
       display: flex;
       flex-direction: column;
       align-items: center;
+      justify-content: center;
+      height: 100vh;
+      background-color: #f9f9f9;
     }
 
-    #canvas {
-      border: 1px solid #ccc;
+    canvas {
+      display: block;
+      border: 2px solid #ccc;
+      margin-bottom: 20px;
     }
 
     #info {
-      margin-top: 10px;
       display: flex;
       flex-direction: column;
       align-items: center;
       background: rgba(255, 255, 255, 0.9);
-      padding: 10px;
+      padding: 15px;
       border-radius: 8px;
       box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+      width: 90%;
+      max-width: 500px;
     }
 
     #info input, #info button {
-      margin: 5px 0;
-      padding: 5px 10px;
+      margin: 10px 0;
+      padding: 10px;
       border-radius: 4px;
       border: 1px solid #ccc;
+      width: 100%;
     }
 
     #info button {
@@ -41,10 +53,14 @@
       border: none;
       cursor: pointer;
     }
+
+    #info button:hover {
+      background-color: #0056b3;
+    }
   </style>
 </head>
 <body>
-  <canvas id="canvas" width="800" height="800"></canvas>
+  <canvas id="canvas"></canvas>
   <div id="info">
     <div>
       <label for="xCoord">X Coordinate:</label>
@@ -57,10 +73,6 @@
       <label for="imageUrl">Image URL:</label>
       <input type="text" id="imageUrl" placeholder="Enter image URL">
     </div>
-    <div>
-      <label for="linkUrl">Link URL:</label>
-      <input type="text" id="linkUrl" placeholder="Enter link URL">
-    </div>
     <button id="savePixelData">Save Pixel Data</button>
   </div>
 
@@ -72,30 +84,24 @@
     const xCoordInput = document.getElementById("xCoord");
     const yCoordInput = document.getElementById("yCoord");
     const imageUrlInput = document.getElementById("imageUrl");
-    const linkUrlInput = document.getElementById("linkUrl");
 
-    let pixelSize = 20; // Dimensione del pixel visualizzato
-    const gridWidth = 10000; // Larghezza totale della griglia
-    const gridHeight = 10000; // Altezza totale della griglia
-    let viewOffsetX = 0;
-    let viewOffsetY = 0;
-    const pixelData = {}; // Archivio dei dati dei pixel
+    const gridSize = 10; // 10x10 griglia
+    const pixelSize = Math.floor(window.innerWidth / gridSize); // Dimensione pixel calcolata
+    canvas.width = gridSize * pixelSize;
+    canvas.height = gridSize * pixelSize;
 
-    // Funzione per disegnare la griglia
+    const pixelData = {}; // Dati per i pixel
+
+    // Disegna la griglia e le immagini
     function drawGrid() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       ctx.strokeStyle = "#ddd";
 
-      for (let x = 0; x < canvas.width / pixelSize; x++) {
-        for (let y = 0; y < canvas.height / pixelSize; y++) {
-          const gridX = viewOffsetX + x;
-          const gridY = viewOffsetY + y;
-
-          // Disegna il rettangolo della griglia
+      for (let x = 0; x < gridSize; x++) {
+        for (let y = 0; y < gridSize; y++) {
+          const key = `${x},${y}`;
           ctx.strokeRect(x * pixelSize, y * pixelSize, pixelSize, pixelSize);
 
-          // Se il pixel ha un'immagine, la disegna
-          const key = `${gridX},${gridY}`;
           if (pixelData[key] && pixelData[key].image) {
             const img = new Image();
             img.src = pixelData[key].image;
@@ -107,61 +113,51 @@
       }
     }
 
-    // Funzione per spostarsi alle coordinate
-    function goToCoordinates() {
-      const x = parseInt(xCoordInput.value, 10);
-      const y = parseInt(yCoordInput.value, 10);
-
-      if (x >= 0 && x < gridWidth && y >= 0 && y < gridHeight) {
-        viewOffsetX = x;
-        viewOffsetY = y;
-        drawGrid();
-      } else {
-        alert("Coordinates out of bounds!");
-      }
-    }
-
-    // Funzione per salvare i dati del pixel
+    // Salva i dati del pixel
     function savePixelData() {
       const x = parseInt(xCoordInput.value, 10);
       const y = parseInt(yCoordInput.value, 10);
 
-      if (x < 0 || x >= gridWidth || y < 0 || y >= gridHeight) {
+      if (x < 0 || x >= gridSize || y < 0 || y >= gridSize) {
         alert("Coordinates out of bounds!");
         return;
       }
 
       const key = `${x},${y}`;
       const imageUrl = imageUrlInput.value.trim();
-      const linkUrl = linkUrlInput.value.trim();
+
+      if (!imageUrl) {
+        alert("Please provide a valid image URL!");
+        return;
+      }
 
       pixelData[key] = {
-        image: imageUrl || null,
-        link: linkUrl || null,
+        image: imageUrl,
       };
 
       drawGrid();
-      alert(`Data saved for pixel (${x}, ${y})`);
+      alert(`Image saved at (${x}, ${y})`);
     }
 
-    // Aggiungi un evento click sulla griglia
-    canvas.addEventListener("click", event => {
-      const x = Math.floor(event.offsetX / pixelSize) + viewOffsetX;
-      const y = Math.floor(event.offsetY / pixelSize) + viewOffsetY;
-      const key = `${x},${y}`;
+    // Spostarsi su una coordinata specifica
+    function goToCoordinates() {
+      const x = parseInt(xCoordInput.value, 10);
+      const y = parseInt(yCoordInput.value, 10);
 
-      if (pixelData[key] && pixelData[key].link) {
-        window.open(pixelData[key].link, "_blank");
+      if (x < 0 || x >= gridSize || y < 0 || y >= gridSize) {
+        alert("Coordinates out of bounds!");
+        return;
       }
-    });
 
-    goToCoordinatesButton.addEventListener("click", goToCoordinates);
+      alert(`Moved to (${x}, ${y}).`);
+    }
+
+    // Event listeners
     savePixelDataButton.addEventListener("click", savePixelData);
+    goToCoordinatesButton.addEventListener("click", goToCoordinates);
 
     // Disegna la griglia iniziale
     drawGrid();
   </script>
 </body>
 </html>
-
-
