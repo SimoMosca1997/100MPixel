@@ -195,14 +195,22 @@
         selectedPixels.add(key);
       }
 
+      openModal();
       drawGrid();
     });
 
     // Open modal to edit pixel
     function openModal() {
       modal.style.display = "flex";
-      imageUrlInput.value = "";
-      linkUrlInput.value = "";
+      const keys = Array.from(selectedPixels);
+      if (keys.length === 1) {
+        const data = pixelData[keys[0]] || {};
+        imageUrlInput.value = data.image || "";
+        linkUrlInput.value = data.link || "";
+      } else {
+        imageUrlInput.value = "";
+        linkUrlInput.value = "";
+      }
     }
 
     // Save pixel data
