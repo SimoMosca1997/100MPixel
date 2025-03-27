@@ -66,7 +66,24 @@
     <button id="deleteButton">Delete</button>
   </div>
 
-  <script>
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
+    import { getFirestore, collection, setDoc, doc, onSnapshot, deleteDoc } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyA-qCQrGfB941q4s0co5ShnvR4afS9bvKQ",
+      authDomain: "pixelpage2025.firebaseapp.com",
+      projectId: "pixelpage2025",
+      storageBucket: "pixelpage2025.appspot.com",
+      messagingSenderId: "666870364056",
+      appId: "1:666870364056:web:d7a1e7cf203b622f735ded",
+      measurementId: "G-57Z2Q893TS"
+    };
+
+    // Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
     const canvas = document.getElementById("canvas");
     const ctx = canvas.getContext("2d");
 
@@ -76,8 +93,8 @@
     const saveButton = document.getElementById("saveButton");
     const deleteButton = document.getElementById("deleteButton");
 
-    let pixelSize = 20; // Smaller pixel size for more squares
-    let pixelData = JSON.parse(localStorage.getItem("pixelData")) || {}; // Load saved data
+    let pixelSize = 20;
+    let pixelData = {}; // Local cache for Firestore data
     let selectedPixels = new Set();
     let offsetX = 0;
     let offsetY = 0;
@@ -85,7 +102,6 @@
     let isDragging = false;
     let dragStart = { x: 0, y: 0 };
 
-    // Resize canvas to fit screen
     function resizeCanvas() {
       canvas.width = window.innerWidth;
       canvas.height = window.innerHeight;
@@ -94,7 +110,6 @@
 
     window.addEventListener("resize", resizeCanvas);
 
-    // Draw the grid
     function drawGrid() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -112,7 +127,6 @@
             pixelSize * scale
           );
 
-          // Highlight selected pixels
           if (selectedPixels.has(key)) {
             ctx.fillStyle = "rgba(0, 0, 255, 0.3)";
             ctx.fillRect(
@@ -123,7 +137,6 @@
             );
           }
 
-          // Draw saved image if exists
           if (pixelData[key]) {
             const { image } = pixelData[key];
             const img = new Image();
@@ -142,18 +155,16 @@
       }
     }
 
-    // Handle zoom
     canvas.addEventListener("wheel", (event) => {
       event.preventDefault();
       const zoomFactor = 0.1;
       const direction = event.deltaY > 0 ? -1 : 1;
 
       scale += direction * zoomFactor;
-      scale = Math.max(0.1, Math.min(scale, 10)); // Clamp scale
+      scale = Math.max(0.1, Math.min(scale, 10));
       drawGrid();
     });
 
-    // Handle drag
     canvas.addEventListener("mousedown", (event) => {
       isDragging = true;
       dragStart = { x: event.clientX, y: event.clientY };
@@ -179,7 +190,6 @@
       canvas.style.cursor = "grab";
     });
 
-    // Handle click on canvas for selection
     canvas.addEventListener("click", (event) => {
       const x = Math.floor((event.offsetX / scale - offsetX) / pixelSize);
       const y = Math.floor((event.offsetY / scale - offsetY) / pixelSize);
@@ -206,7 +216,6 @@
       drawGrid();
     });
 
-    // Open modal to edit pixel
     function openModal() {
       modal.style.display = "flex";
       const keys = Array.from(selectedPixels);
@@ -220,7 +229,6 @@
       }
     }
 
-    // Save pixel data
     function savePixelData() {
       const imageUrl = imageUrlInput.value.trim();
       const linkUrl = linkUrlInput.value.trim();
@@ -231,39 +239,23 @@
       }
 
       const keys = Array.from(selectedPixels);
-      const minX = Math.min(...keys.map((key) => parseInt(key.split(",")[0])));
-      const minY = Math.min(...keys.map((key) => parseInt(key.split(",")[1])));
-      const maxX = Math.max(...keys.map((key) => parseInt(key.split(",")[0])));
-      const maxY = Math.max(...keys.map((key) => parseInt(key.split(",")[1])));
-
-      keys.forEach((key) => {
-        pixelData[key] = { image: imageUrl, link: linkUrl };
+      keys.forEach(async (key) => {
+        const docRef = doc(db, "pixels", key);
+        await setDoc(docRef, {
+          image: imageUrl,
+          link: linkUrl
+        });
       });
-
-      const img = new Image();
-      img.src = imageUrl;
-      img.onload = () => {
-        ctx.drawImage(
-          img,
-          (minX * pixelSize + offsetX) * scale,
-          (minY * pixelSize + offsetY) * scale,
-          (maxX - minX + 1) * pixelSize * scale,
-          (maxY - minY + 1) * pixelSize * scale
-        );
-        localStorage.setItem("pixelData", JSON.stringify(pixelData));
-      };
 
       modal.style.display = "none";
       drawGrid();
     }
 
-    // Delete pixel data
     function deletePixelData() {
-      selectedPixels.forEach((key) => {
-        delete pixelData[key];
+      selectedPixels.forEach(async (key) => {
+        const docRef = doc(db, "pixels", key);
+        await deleteDoc(docRef);
       });
-
-      localStorage.setItem("pixelData", JSON.stringify(pixelData));
 
       modal.style.display = "none";
       drawGrid();
@@ -272,7 +264,22 @@
     saveButton.addEventListener("click", savePixelData);
     deleteButton.addEventListener("click", deletePixelData);
 
-    // Initial setup
+    function syncWithFirestore() {
+      const colRef = collection(db, "pixels");
+      onSnapshot(colRef, (snapshot) => {
+        snapshot.docChanges().forEach((change) => {
+          const key = change.doc.id;
+          if (change.type === "added" || change.type === "modified") {
+            pixelData[key] = change.doc.data();
+          } else if (change.type === "removed") {
+            delete pixelData[key];
+          }
+        });
+        drawGrid();
+      });
+    }
+
+    syncWithFirestore();
     resizeCanvas();
   </script>
 </body>
