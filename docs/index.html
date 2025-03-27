@@ -1,177 +1,152 @@
 <!DOCTYPE html>
-<html lang="it">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>10 Milioni di Pixel su Polygon</title>
+  <title>Pixel Art Dapp</title>
   <script src="https://cdn.jsdelivr.net/npm/web3@latest/dist/web3.min.js"></script>
   <style>
-    * { margin: 0; padding: 0; }
-    body { overflow: hidden; font-family: Arial, sans-serif; text-align: center; }
-    canvas { display: block; background-color: white; cursor: crosshair; }
+    body {
+      margin: 0;
+      overflow: hidden;
+      font-family: Arial, sans-serif;
+    }
+
     #info {
-      position: absolute;
+      position: fixed;
       top: 10px;
       left: 10px;
       background: rgba(255, 255, 255, 0.9);
       padding: 10px;
-      border-radius: 5px;
-      display: none;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
     }
-    button { padding: 10px; font-size: 16px; cursor: pointer; margin: 5px; }
+
+    #info button {
+      margin-top: 10px;
+      padding: 5px 10px;
+      background-color: #007bff;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    #info button:disabled {
+      background-color: #aaa;
+      cursor: not-allowed;
+    }
   </style>
 </head>
 <body>
-
+  <canvas id="canvas"></canvas>
   <div id="info">
-    <p>Seleziona i pixel e poi collega il wallet per acquistare.</p>
-    <button id="connectWallet">Connetti Wallet</button>
-    <button id="acquista" style="display:none;">Acquista con MATIC</button>
+    <p>Selected Pixels: <span id="selectedPixels">0</span></p>
+    <button id="connectWallet">Connect Wallet</button>
+    <button id="purchasePixels" disabled>Purchase Pixels</button>
   </div>
 
-  <canvas id="pixelCanvas"></canvas>
-
   <script>
-    const canvas = document.getElementById("pixelCanvas");
-    const ctx = canvas.getContext("2d");
-    const infoBox = document.getElementById("info");
-    const connectWalletButton = document.getElementById("connectWallet");
-    const purchaseButton = document.getElementById("acquista");
-
-    let selectedPixels = [];
-    let userAddress = null;
-    let web3;
-    
     const CONTRACT_ADDRESS = "0x2fBeb93ca9D0f9381FE17130b1dbA00EE1e53078";
     const CONTRACT_ABI = [{"inputs":[],"stateMutability":"nonpayable","type":"constructor"},{"anonymous":false,"inputs":[{"indexed":false,"internalType":"uint256","name":"x","type":"uint256"},{"indexed":false,"internalType":"uint256","name":"y","type":"uint256"},{"indexed":false,"internalType":"string","name":"newImage","type":"string"}],"name":"PixelImageUpdated","type":"event"},{"anonymous":false,"inputs":[{"indexed":false,"internalType":"uint256","name":"x","type":"uint256"},{"indexed":false,"internalType":"uint256","name":"y","type":"uint256"},{"indexed":false,"internalType":"string","name":"newLink","type":"string"}],"name":"PixelLinkUpdated","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"seller","type":"address"},{"indexed":false,"internalType":"uint256","name":"x","type":"uint256"},{"indexed":false,"internalType":"uint256","name":"y","type":"uint256"},{"indexed":false,"internalType":"uint256","name":"price","type":"uint256"}],"name":"PixelListedForSale","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"buyer","type":"address"},{"indexed":false,"internalType":"uint256","name":"x","type":"uint256"},{"indexed":false,"internalType":"uint256","name":"y","type":"uint256"},{"indexed":false,"internalType":"uint256","name":"price","type":"uint256"}],"name":"PixelPurchased","type":"event"},{"anonymous":false,"inputs":[{"indexed":false,"internalType":"uint256","name":"x","type":"uint256"},{"indexed":false,"internalType":"uint256","name":"y","type":"uint256"},{"indexed":false,"internalType":"string","name":"newColor","type":"string"}],"name":"PixelUpdated","type":"event"},{"inputs":[],"name":"MAX_STRING_LENGTH","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"MIN_RESALE_PRICE","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"PIXEL_COST","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"PIXEL_SIZE","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"TRANSACTION_FEE","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"uint256","name":"x","type":"uint256"},{"internalType":"uint256","name":"y","type":"uint256"}],"name":"buyListedPixel","outputs":[],"stateMutability":"payable","type":"function"},{"inputs":[{"internalType":"uint256","name":"x","type":"uint256"},{"internalType":"uint256","name":"y","type":"uint256"},{"internalType":"string","name":"color","type":"string"}],"name":"buyPixel","outputs":[],"stateMutability":"payable","type":"function"},{"inputs":[{"internalType":"uint256","name":"x","type":"uint256"},{"internalType":"uint256","name":"y","type":"uint256"},{"internalType":"uint256","name":"price","type":"uint256"}],"name":"listPixelForSale","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[],"name":"owner","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"uint256","name":"","type":"uint256"},{"internalType":"uint256","name":"","type":"uint256"}],"name":"pixels","outputs":[{"internalType":"uint256","name":"x","type":"uint256"},{"internalType":"uint256","name":"y","type":"uint256"},{"internalType":"string","name":"color","type":"string"},{"internalType":"address","name":"currentOwner","type":"address"},{"internalType":"uint256","name":"price","type":"uint256"},{"internalType":"string","name":"image","type":"string"},{"internalType":"string","name":"link","type":"string"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"uint256","name":"x","type":"uint256"},{"internalType":"uint256","name":"y","type":"uint256"},{"internalType":"string","name":"newColor","type":"string"}],"name":"updatePixelColor","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"uint256","name":"x","type":"uint256"},{"internalType":"uint256","name":"y","type":"uint256"},{"internalType":"string","name":"newImage","type":"string"}],"name":"updatePixelImage","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"uint256","name":"x","type":"uint256"},{"internalType":"uint256","name":"y","type":"uint256"},{"internalType":"string","name":"newLink","type":"string"}],"name":"updatePixelLink","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[],"name":"withdraw","outputs":[],"stateMutability":"nonpayable","type":"function"}];
+
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d");
+    const connectWalletButton = document.getElementById("connectWallet");
+    const purchaseButton = document.getElementById("purchasePixels");
+    const selectedPixelsDisplay = document.getElementById("selectedPixels");
+
+    let web3;
     let pixelStoreContract;
+    let selectedPixels = [];
+    let pixelSize = 20;
 
-    // Funzione per passare alla rete Polygon
-    async function switchToPolygonNetwork() {
-      try {
-        await window.ethereum.request({
-          method: "wallet_addEthereumChain",
-          params: [
-            {
-              chainId: "0x89", // Polygon Mainnet
-              chainName: "Polygon Mainnet",
-              nativeCurrency: {
-                name: "MATIC",
-                symbol: "MATIC",
-                decimals: 18
-              },
-              rpcUrls: ["https://rpc-mainnet.maticvigil.com/"],
-              blockExplorerUrls: ["https://polygonscan.com/"]
-            }
-          ]
-        });
-      } catch (error) {
-        console.error("Errore nella configurazione della rete Polygon:", error.message);
-        alert("Errore nella configurazione della rete Polygon: " + error.message);
-      }
+    function resizeCanvas() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      drawGrid();
     }
 
-    // Connetti il wallet e inizializza il contratto
-    async function connectWallet() {
-      if (window.ethereum) {
-        try {
-          console.log("Tentativo di connessione al wallet...");
-          await switchToPolygonNetwork();
-          web3 = new Web3(window.ethereum);
-          const accounts = await window.ethereum.request({ method: "eth_requestAccounts" });
-          userAddress = accounts[0];
-          pixelStoreContract = new web3.eth.Contract([{"inputs":[],"stateMutability":"nonpayable","type":"constructor"},{"anonymous":false,"inputs":[{"indexed":false,"internalType":"uint256","name":"x","type":"uint256"},{"indexed":false,"internalType":"uint256","name":"y","type":"uint256"},{"indexed":false,"internalType":"string","name":"newImage","type":"string"}],"name":"PixelImageUpdated","type":"event"},{"anonymous":false,"inputs":[{"indexed":false,"internalType":"uint256","name":"x","type":"uint256"},{"indexed":false,"internalType":"uint256","name":"y","type":"uint256"},{"indexed":false,"internalType":"string","name":"newLink","type":"string"}],"name":"PixelLinkUpdated","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"seller","type":"address"},{"indexed":false,"internalType":"uint256","name":"x","type":"uint256"},{"indexed":false,"internalType":"uint256","name":"y","type":"uint256"},{"indexed":false,"internalType":"uint256","name":"price","type":"uint256"}],"name":"PixelListedForSale","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"buyer","type":"address"},{"indexed":false,"internalType":"uint256","name":"x","type":"uint256"},{"indexed":false,"internalType":"uint256","name":"y","type":"uint256"},{"indexed":false,"internalType":"uint256","name":"price","type":"uint256"}],"name":"PixelPurchased","type":"event"},{"anonymous":false,"inputs":[{"indexed":false,"internalType":"uint256","name":"x","type":"uint256"},{"indexed":false,"internalType":"uint256","name":"y","type":"uint256"},{"indexed":false,"internalType":"string","name":"newColor","type":"string"}],"name":"PixelUpdated","type":"event"},{"inputs":[],"name":"MAX_STRING_LENGTH","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"MIN_RESALE_PRICE","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"PIXEL_COST","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"PIXEL_SIZE","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[],"name":"TRANSACTION_FEE","outputs":[{"internalType":"uint256","name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"uint256","name":"x","type":"uint256"},{"internalType":"uint256","name":"y","type":"uint256"}],"name":"buyListedPixel","outputs":[],"stateMutability":"payable","type":"function"},{"inputs":[{"internalType":"uint256","name":"x","type":"uint256"},{"internalType":"uint256","name":"y","type":"uint256"},{"internalType":"string","name":"color","type":"string"}],"name":"buyPixel","outputs":[],"stateMutability":"payable","type":"function"},{"inputs":[{"internalType":"uint256","name":"x","type":"uint256"},{"internalType":"uint256","name":"y","type":"uint256"},{"internalType":"uint256","name":"price","type":"uint256"}],"name":"listPixelForSale","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[],"name":"owner","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"uint256","name":"","type":"uint256"},{"internalType":"uint256","name":"","type":"uint256"}],"name":"pixels","outputs":[{"internalType":"uint256","name":"x","type":"uint256"},{"internalType":"uint256","name":"y","type":"uint256"},{"internalType":"string","name":"color","type":"string"},{"internalType":"address","name":"currentOwner","type":"address"},{"internalType":"uint256","name":"price","type":"uint256"},{"internalType":"string","name":"image","type":"string"},{"internalType":"string","name":"link","type":"string"}],"stateMutability":"view","type":"function"},{"inputs":[{"internalType":"uint256","name":"x","type":"uint256"},{"internalType":"uint256","name":"y","type":"uint256"},{"internalType":"string","name":"newColor","type":"string"}],"name":"updatePixelColor","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"uint256","name":"x","type":"uint256"},{"internalType":"uint256","name":"y","type":"uint256"},{"internalType":"string","name":"newImage","type":"string"}],"name":"updatePixelImage","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"internalType":"uint256","name":"x","type":"uint256"},{"internalType":"uint256","name":"y","type":"uint256"},{"internalType":"string","name":"newLink","type":"string"}],"name":"updatePixelLink","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[],"name":"withdraw","outputs":[],"stateMutability":"nonpayable","type":"function"}], 0x2fBeb93ca9D0f9381FE17130b1dbA00EE1e53078);
-          console.log("Wallet connesso:", userAddress);
-          alert("Wallet connesso: " + userAddress);
-          connectWalletButton.style.display = "none";
-          purchaseButton.style.display = "inline-block";
-        } catch (error) {
-          console.error("Errore durante la connessione:", error.message);
-          alert("Errore durante la connessione: " + error.message);
-        }
-      } else {
-        alert("Metamask non è installato. Scaricalo da https://metamask.io/");
-      }
-    }
-
-    connectWalletButton.addEventListener("click", connectWallet);
-
-    // Acquista i pixel selezionati
-    purchaseButton.addEventListener("click", async () => {
-      if (!userAddress) {
-        alert("Connetti prima il tuo wallet!");
-        return;
-      }
-      if (selectedPixels.length === 0) {
-        alert("Seleziona almeno un pixel!");
-        return;
-      }
-      try {
-        for (let pixel of selectedPixels) {
-          const [x, y] = pixel.split(",");
-          await pixelStoreContract.methods.buyPixel(parseInt(x), parseInt(y)).send({
-            from: userAddress,
-            value: web3.utils.toWei("0.1", "ether") // Modifica il prezzo per pixel
-          });
-        }
-        alert("Pixel acquistati con successo!");
-        selectedPixels = [];
-        updateUI();
-        drawGrid();
-      } catch (error) {
-        console.error("Errore durante l'acquisto:", error.message);
-        alert("Errore durante l'acquisto: " + error.message);
-      }
-    });
-
-    function updateUI() {
-      if (selectedPixels.length > 0) {
-        infoBox.style.display = "block";
-        if (!userAddress) {
-          connectWalletButton.style.display = "inline-block";
-          purchaseButton.style.display = "none";
-        } else {
-          connectWalletButton.style.display = "none";
-          purchaseButton.style.display = "inline-block";
-        }
-      } else {
-        infoBox.style.display = "none";
-      }
-    }
-
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-    const pixelSize = 10;
+    window.addEventListener("resize", resizeCanvas);
+    resizeCanvas();
 
     function drawGrid() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      for (let x = 0; x < canvas.width / pixelSize; x++) {
-        for (let y = 0; y < canvas.height / pixelSize; y++) {
-          ctx.strokeStyle = "#ddd";
-          ctx.strokeRect(x * pixelSize, y * pixelSize, pixelSize, pixelSize);
-          if (selectedPixels.includes(`${x},${y}`)) {
-            ctx.fillStyle = "blue";
-            ctx.fillRect(x * pixelSize, y * pixelSize, pixelSize, pixelSize);
-          }
+      ctx.strokeStyle = "#ddd";
+
+      for (let x = 0; x < canvas.width; x += pixelSize) {
+        for (let y = 0; y < canvas.height; y += pixelSize) {
+          ctx.strokeRect(x, y, pixelSize, pixelSize);
         }
       }
+
+      selectedPixels.forEach(pixel => {
+        const [x, y] = pixel.split(",").map(Number);
+        ctx.fillStyle = "rgba(0, 128, 255, 0.5)";
+        ctx.fillRect(x * pixelSize, y * pixelSize, pixelSize, pixelSize);
+      });
     }
 
-    drawGrid();
-
-    canvas.addEventListener("click", (e) => {
-      const x = Math.floor(e.clientX / pixelSize);
-      const y = Math.floor(e.clientY / pixelSize);
+    canvas.addEventListener("click", event => {
+      const x = Math.floor(event.clientX / pixelSize);
+      const y = Math.floor(event.clientY / pixelSize);
       const key = `${x},${y}`;
+
       if (!selectedPixels.includes(key)) {
         selectedPixels.push(key);
       } else {
         selectedPixels = selectedPixels.filter(p => p !== key);
       }
-      updateUI();
+
+      selectedPixelsDisplay.textContent = selectedPixels.length;
       drawGrid();
     });
-  </script>
 
+    async function connectWallet() {
+      if (typeof window.ethereum === "undefined") {
+        alert("Please install MetaMask!");
+        return;
+      }
+
+      try {
+        await window.ethereum.request({ method: "eth_requestAccounts" });
+        web3 = new Web3(window.ethereum);
+        pixelStoreContract = new web3.eth.Contract(CONTRACT_ABI, CONTRACT_ADDRESS);
+        alert("Wallet connected!");
+        purchaseButton.disabled = false;
+      } catch (error) {
+        console.error("Error connecting wallet:", error);
+      }
+    }
+
+    async function purchasePixels() {
+      if (!web3 || !pixelStoreContract) {
+        alert("Please connect your wallet first.");
+        return;
+      }
+
+      const accounts = await web3.eth.getAccounts();
+      const account = accounts[0];
+      const pricePerPixel = await pixelStoreContract.methods.PIXEL_COST().call();
+      const totalCost = web3.utils.toBN(pricePerPixel).mul(web3.utils.toBN(selectedPixels.length));
+
+      try {
+        await pixelStoreContract.methods.buyPixels(selectedPixels).send({
+          from: account,
+          value: totalCost
+        });
+        alert("Pixels purchased successfully!");
+        selectedPixels = [];
+        selectedPixelsDisplay.textContent = selectedPixels.length;
+        drawGrid();
+      } catch (error) {
+        console.error("Error purchasing pixels:", error);
+      }
+    }
+
+    connectWalletButton.addEventListener("click", connectWallet);
+    purchaseButton.addEventListener("click", purchasePixels);
+  </script>
 </body>
 </html>
+
