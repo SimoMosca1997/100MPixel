@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Pixel Grid Editor</title>
+  <title>Interactive Pixel Grid</title>
   <style>
     * {
       margin: 0;
@@ -13,17 +13,11 @@
 
     body {
       font-family: Arial, sans-serif;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      height: 100vh;
-      background-color: #f4f4f4;
       overflow: hidden;
     }
 
     canvas {
-      border: 1px solid #ccc;
+      display: block;
       cursor: grab;
     }
 
@@ -34,182 +28,185 @@
       transform: translate(-50%, -50%);
       background: white;
       padding: 20px;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
       border-radius: 8px;
-      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
       display: none;
       z-index: 10;
     }
 
-    #popup input, #popup button {
-      margin: 10px 0;
-      padding: 10px;
+    #popup input {
+      margin-bottom: 10px;
       width: 100%;
-      border-radius: 4px;
+      padding: 8px;
       border: 1px solid #ccc;
+      border-radius: 4px;
     }
 
     #popup button {
+      padding: 10px 20px;
       background-color: #007bff;
       color: white;
       border: none;
+      border-radius: 4px;
       cursor: pointer;
     }
 
     #popup button:hover {
       background-color: #0056b3;
     }
-
-    #overlay {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(0, 0, 0, 0.5);
-      display: none;
-      z-index: 5;
-    }
   </style>
 </head>
 <body>
   <canvas id="canvas"></canvas>
-
-  <div id="overlay"></div>
   <div id="popup">
-    <label for="imageUrl">Image URL:</label>
-    <input type="text" id="imageUrl" placeholder="Enter image URL">
-    <label for="linkUrl">Link URL:</label>
-    <input type="text" id="linkUrl" placeholder="Enter link URL">
+    <h3>Set Pixel Data</h3>
+    <input type="text" id="imageUrl" placeholder="Image URL">
+    <input type="text" id="linkUrl" placeholder="Link URL (optional)">
     <button id="savePixel">Save</button>
   </div>
 
   <script>
     const canvas = document.getElementById("canvas");
     const ctx = canvas.getContext("2d");
-
-    const gridSize = 10; // 10x10 grid
-    const pixelSize = 50; // Size of each pixel
-    canvas.width = gridSize * pixelSize;
-    canvas.height = gridSize * pixelSize;
-
-    const pixelData = {}; // Store data for each pixel
-
-    let isDragging = false;
-    let dragStart = { x: 0, y: 0 };
-    let offset = { x: 0, y: 0 };
-    let zoomLevel = 1;
-
     const popup = document.getElementById("popup");
-    const overlay = document.getElementById("overlay");
     const imageUrlInput = document.getElementById("imageUrl");
     const linkUrlInput = document.getElementById("linkUrl");
     const savePixelButton = document.getElementById("savePixel");
 
+    let gridSize = 20; // Number of squares per row and column
+    let pixelSize;
+    let gridData = JSON.parse(localStorage.getItem("gridData")) || {}; // Load saved data
+
+    let isDragging = false;
+    let offsetX = 0;
+    let offsetY = 0;
+    let startDragX = 0;
+    let startDragY = 0;
+    let zoomLevel = 1;
     let selectedPixel = null;
 
-    // Draw grid and images
+    function resizeCanvas() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      pixelSize = Math.min(canvas.width, canvas.height) / gridSize;
+      drawGrid();
+    }
+
     function drawGrid() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.setTransform(zoomLevel, 0, 0, zoomLevel, offset.x, offset.y);
 
       for (let x = 0; x < gridSize; x++) {
         for (let y = 0; y < gridSize; y++) {
-          const key = `${x},${y}`;
-          ctx.strokeStyle = "#ddd";
-          ctx.strokeRect(x * pixelSize, y * pixelSize, pixelSize, pixelSize);
+          const pixelX = x * pixelSize - offsetX;
+          const pixelY = y * pixelSize - offsetY;
 
-          if (pixelData[key] && pixelData[key].image) {
+          // Draw grid square
+          ctx.strokeStyle = "#ddd";
+          ctx.strokeRect(pixelX, pixelY, pixelSize, pixelSize);
+
+          // Draw image if exists
+          const key = `${x},${y}`;
+          if (gridData[key] && gridData[key].image) {
             const img = new Image();
-            img.src = pixelData[key].image;
+            img.src = gridData[key].image;
             img.onload = () => {
-              ctx.drawImage(img, x * pixelSize, y * pixelSize, pixelSize, pixelSize);
+              ctx.drawImage(img, pixelX, pixelY, pixelSize, pixelSize);
             };
           }
         }
       }
     }
 
-    // Open popup to set pixel data
-    function openPopup(x, y) {
-      selectedPixel = { x, y };
+    function showPopup(x, y) {
       popup.style.display = "block";
-      overlay.style.display = "block";
+      selectedPixel = { x, y };
     }
 
-    // Save pixel data
-    savePixelButton.addEventListener("click", () => {
-      const x = selectedPixel.x;
-      const y = selectedPixel.y;
-      const key = `${x},${y}`;
+    function hidePopup() {
+      popup.style.display = "none";
+      selectedPixel = null;
+    }
 
+    function savePixelData() {
+      if (!selectedPixel) return;
+
+      const { x, y } = selectedPixel;
       const imageUrl = imageUrlInput.value.trim();
       const linkUrl = linkUrlInput.value.trim();
 
       if (!imageUrl) {
-        alert("Please provide a valid image URL!");
+        alert("Image URL is required!");
         return;
       }
 
-      pixelData[key] = { image: imageUrl, link: linkUrl || null };
-      drawGrid();
-
-      popup.style.display = "none";
-      overlay.style.display = "none";
-      imageUrlInput.value = "";
-      linkUrlInput.value = "";
-    });
-
-    // Handle canvas click
-    canvas.addEventListener("click", (event) => {
-      const rect = canvas.getBoundingClientRect();
-      const x = Math.floor((event.clientX - rect.left - offset.x) / (pixelSize * zoomLevel));
-      const y = Math.floor((event.clientY - rect.top - offset.y) / (pixelSize * zoomLevel));
       const key = `${x},${y}`;
+      gridData[key] = {
+        image: imageUrl,
+        link: linkUrl || null,
+      };
 
-      if (pixelData[key] && pixelData[key].link) {
-        window.open(pixelData[key].link, "_blank");
-      } else {
-        openPopup(x, y);
+      localStorage.setItem("gridData", JSON.stringify(gridData)); // Save to localStorage
+      drawGrid();
+      hidePopup();
+    }
+
+    canvas.addEventListener("mousedown", (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const mouseX = (e.clientX - rect.left) / zoomLevel + offsetX;
+      const mouseY = (e.clientY - rect.top) / zoomLevel + offsetY;
+
+      const x = Math.floor(mouseX / pixelSize);
+      const y = Math.floor(mouseY / pixelSize);
+
+      const key = `${x},${y}`;
+      if (gridData[key] && gridData[key].link) {
+        window.open(gridData[key].link, "_blank");
+        return;
       }
-    });
 
-    // Dragging to pan the canvas
-    canvas.addEventListener("mousedown", (event) => {
       isDragging = true;
-      dragStart.x = event.clientX - offset.x;
-      dragStart.y = event.clientY - offset.y;
-      canvas.style.cursor = "grabbing";
+      startDragX = e.clientX;
+      startDragY = e.clientY;
     });
 
-    canvas.addEventListener("mousemove", (event) => {
+    canvas.addEventListener("mouseup", (e) => {
+      if (!isDragging) {
+        const rect = canvas.getBoundingClientRect();
+        const mouseX = (e.clientX - rect.left) / zoomLevel + offsetX;
+        const mouseY = (e.clientY - rect.top) / zoomLevel + offsetY;
+
+        const x = Math.floor(mouseX / pixelSize);
+        const y = Math.floor(mouseY / pixelSize);
+
+        showPopup(x, y);
+      }
+
+      isDragging = false;
+    });
+
+    canvas.addEventListener("mousemove", (e) => {
       if (isDragging) {
-        offset.x = event.clientX - dragStart.x;
-        offset.y = event.clientY - dragStart.y;
+        offsetX -= (e.clientX - startDragX) / zoomLevel;
+        offsetY -= (e.clientY - startDragY) / zoomLevel;
+        startDragX = e.clientX;
+        startDragY = e.clientY;
         drawGrid();
       }
     });
 
-    canvas.addEventListener("mouseup", () => {
-      isDragging = false;
-      canvas.style.cursor = "grab";
-    });
-
-    canvas.addEventListener("wheel", (event) => {
-      event.preventDefault();
-      const zoomAmount = -event.deltaY * 0.001;
-      zoomLevel = Math.min(Math.max(0.5, zoomLevel + zoomAmount), 5);
+    canvas.addEventListener("wheel", (e) => {
+      e.preventDefault();
+      const zoomAmount = e.deltaY > 0 ? 0.9 : 1.1;
+      zoomLevel *= zoomAmount;
+      zoomLevel = Math.max(0.5, Math.min(5, zoomLevel));
+      ctx.setTransform(zoomLevel, 0, 0, zoomLevel, 0, 0);
       drawGrid();
     });
 
-    overlay.addEventListener("click", () => {
-      popup.style.display = "none";
-      overlay.style.display = "none";
-      imageUrlInput.value = "";
-      linkUrlInput.value = "";
-    });
+    window.addEventListener("resize", resizeCanvas);
+    savePixelButton.addEventListener("click", savePixelData);
 
-    // Initial draw
-    drawGrid();
+    resizeCanvas();
   </script>
 </body>
 </html>
