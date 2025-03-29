@@ -105,6 +105,27 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
+<<<<<<< HEAD
+=======
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
+    import { getFirestore, collection, setDoc, doc, onSnapshot, deleteDoc } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyA-qCQrGfB941q4s0co5ShnvR4afS9bvKQ",
+      authDomain: "pixelpage2025.firebaseapp.com",
+      projectId: "pixelpage2025",
+      storageBucket: "pixelpage2025.appspot.com",
+      messagingSenderId: "666870364056",
+      appId: "1:666870364056:web:d7a1e7cf203b622f735ded",
+      measurementId: "G-57Z2Q893TS"
+    };
+
+    // Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+>>>>>>> 385381c3be9b1d9f6a617b11c02d79475dbe0406
     const canvas = document.getElementById("canvas");
     const ctx = canvas.getContext("2d");
 
@@ -213,6 +234,7 @@
       canvas.style.cursor = "grab";
     });
 
+<<<<<<< HEAD
     canvas.addEventListener("touchstart", (event) => {
       if (event.touches.length === 1) {
         isDragging = true;
@@ -250,6 +272,8 @@
       isDragging = false;
     });
 
+=======
+>>>>>>> 385381c3be9b1d9f6a617b11c02d79475dbe0406
     canvas.addEventListener("click", (event) => {
       const x = Math.floor((event.offsetX / scale - offsetX) / pixelSize);
       const y = Math.floor((event.offsetY / scale - offsetY) / pixelSize);
