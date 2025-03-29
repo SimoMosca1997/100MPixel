@@ -20,7 +20,6 @@
       display: block;
       background-color: #f0f0f0;
       cursor: grab;
-      touch-action: none;
     }
 
     #modal {
@@ -35,8 +34,6 @@
       flex-direction: column;
       gap: 10px;
       z-index: 1000;
-      max-width: 90%;
-      width: auto;
     }
 
     #modal input {
@@ -58,24 +55,6 @@
     #modal button:hover {
       background-color: #0056b3;
     }
-
-    #resetButton {
-      position: fixed;
-      bottom: 20px;
-      right: 20px;
-      padding: 10px;
-      background-color: #007bff;
-      color: white;
-      border: none;
-      border-radius: 50%;
-      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-      cursor: pointer;
-      z-index: 1000;
-    }
-
-    #resetButton:hover {
-      background-color: #0056b3;
-    }
   </style>
 </head>
 <body>
@@ -86,7 +65,6 @@
     <button id="saveButton">Save</button>
     <button id="deleteButton">Delete</button>
   </div>
-  <button id="resetButton">↺</button>
 
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
@@ -102,6 +80,7 @@
       measurementId: "G-57Z2Q893TS"
     };
 
+    // Initialize Firebase
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
@@ -113,7 +92,6 @@
     const linkUrlInput = document.getElementById("linkUrl");
     const saveButton = document.getElementById("saveButton");
     const deleteButton = document.getElementById("deleteButton");
-    const resetButton = document.getElementById("resetButton");
 
     let pixelSize = 20;
     let pixelData = {}; // Local cache for Firestore data
@@ -123,7 +101,6 @@
     let scale = 1;
     let isDragging = false;
     let dragStart = { x: 0, y: 0 };
-    let lastTouchDistance = 0;
 
     function resizeCanvas() {
       canvas.width = window.innerWidth;
@@ -213,43 +190,6 @@
       canvas.style.cursor = "grab";
     });
 
-    canvas.addEventListener("touchstart", (event) => {
-      if (event.touches.length === 1) {
-        isDragging = true;
-        dragStart = { x: event.touches[0].clientX, y: event.touches[0].clientY };
-      } else if (event.touches.length === 2) {
-        lastTouchDistance = Math.hypot(
-          event.touches[1].clientX - event.touches[0].clientX,
-          event.touches[1].clientY - event.touches[0].clientY
-        );
-      }
-    });
-
-    canvas.addEventListener("touchmove", (event) => {
-      event.preventDefault();
-      if (event.touches.length === 1 && isDragging) {
-        const touch = event.touches[0];
-        offsetX += (touch.clientX - dragStart.x) / scale;
-        offsetY += (touch.clientY - dragStart.y) / scale;
-        dragStart = { x: touch.clientX, y: touch.clientY };
-        drawGrid();
-      } else if (event.touches.length === 2) {
-        const newTouchDistance = Math.hypot(
-          event.touches[1].clientX - event.touches[0].clientX,
-          event.touches[1].clientY - event.touches[0].clientY
-        );
-        const zoomFactor = (newTouchDistance - lastTouchDistance) * 0.005;
-        scale += zoomFactor;
-        scale = Math.max(0.1, Math.min(scale, 10));
-        lastTouchDistance = newTouchDistance;
-        drawGrid();
-      }
-    });
-
-    canvas.addEventListener("touchend", () => {
-      isDragging = false;
-    });
-
     canvas.addEventListener("click", (event) => {
       const x = Math.floor((event.offsetX / scale - offsetX) / pixelSize);
       const y = Math.floor((event.offsetY / scale - offsetY) / pixelSize);
@@ -323,12 +263,6 @@
 
     saveButton.addEventListener("click", savePixelData);
     deleteButton.addEventListener("click", deletePixelData);
-    resetButton.addEventListener("click", () => {
-      offsetX = 0;
-      offsetY = 0;
-      scale = 1;
-      drawGrid();
-    });
 
     function syncWithFirestore() {
       const colRef = collection(db, "pixels");
@@ -350,5 +284,4 @@
   </script>
 </body>
 </html>
-
 

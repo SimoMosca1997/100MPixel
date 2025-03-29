@@ -20,7 +20,6 @@
       display: block;
       background-color: #f0f0f0;
       cursor: grab;
-      touch-action: none;
     }
 
     #modal {
@@ -35,8 +34,6 @@
       flex-direction: column;
       gap: 10px;
       z-index: 1000;
-      max-width: 90%;
-      width: auto;
     }
 
     #modal input {
@@ -58,24 +55,6 @@
     #modal button:hover {
       background-color: #0056b3;
     }
-
-    #resetButton {
-      position: fixed;
-      bottom: 20px;
-      right: 20px;
-      padding: 10px;
-      background-color: #007bff;
-      color: white;
-      border: none;
-      border-radius: 50%;
-      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-      cursor: pointer;
-      z-index: 1000;
-    }
-
-    #resetButton:hover {
-      background-color: #0056b3;
-    }
   </style>
 </head>
 <body>
@@ -86,25 +65,8 @@
     <button id="saveButton">Save</button>
     <button id="deleteButton">Delete</button>
   </div>
-  <button id="resetButton">↺</button>
 
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js";
-    import { getFirestore, collection, setDoc, doc, onSnapshot, deleteDoc } from "https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js";
-
-    const firebaseConfig = {
-      apiKey: "AIzaSyA-qCQrGfB941q4s0co5ShnvR4afS9bvKQ",
-      authDomain: "pixelpage2025.firebaseapp.com",
-      projectId: "pixelpage2025",
-      storageBucket: "pixelpage2025.appspot.com",
-      messagingSenderId: "666870364056",
-      appId: "1:666870364056:web:d7a1e7cf203b622f735ded",
-      measurementId: "G-57Z2Q893TS"
-    };
-
-    const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
-
+  <script>
     const canvas = document.getElementById("canvas");
     const ctx = canvas.getContext("2d");
 
@@ -113,18 +75,17 @@
     const linkUrlInput = document.getElementById("linkUrl");
     const saveButton = document.getElementById("saveButton");
     const deleteButton = document.getElementById("deleteButton");
-    const resetButton = document.getElementById("resetButton");
 
-    let pixelSize = 20;
-    let pixelData = {}; // Local cache for Firestore data
+    let pixelSize = 20; // Smaller pixel size for more squares
+    let pixelData = JSON.parse(localStorage.getItem("pixelData")) || {}; // Load saved data
     let selectedPixels = new Set();
     let offsetX = 0;
     let offsetY = 0;
     let scale = 1;
     let isDragging = false;
     let dragStart = { x: 0, y: 0 };
-    let lastTouchDistance = 0;
 
+    // Resize canvas to fit screen
     function resizeCanvas() {
       canvas.width = window.innerWidth;
       canvas.height = window.innerHeight;
@@ -133,6 +94,7 @@
 
     window.addEventListener("resize", resizeCanvas);
 
+    // Draw the grid
     function drawGrid() {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
@@ -150,6 +112,7 @@
             pixelSize * scale
           );
 
+          // Highlight selected pixels
           if (selectedPixels.has(key)) {
             ctx.fillStyle = "rgba(0, 0, 255, 0.3)";
             ctx.fillRect(
@@ -160,6 +123,7 @@
             );
           }
 
+          // Draw saved image if exists
           if (pixelData[key]) {
             const { image } = pixelData[key];
             const img = new Image();
@@ -178,16 +142,18 @@
       }
     }
 
+    // Handle zoom
     canvas.addEventListener("wheel", (event) => {
       event.preventDefault();
       const zoomFactor = 0.1;
       const direction = event.deltaY > 0 ? -1 : 1;
 
       scale += direction * zoomFactor;
-      scale = Math.max(0.1, Math.min(scale, 10));
+      scale = Math.max(0.1, Math.min(scale, 10)); // Clamp scale
       drawGrid();
     });
 
+    // Handle drag
     canvas.addEventListener("mousedown", (event) => {
       isDragging = true;
       dragStart = { x: event.clientX, y: event.clientY };
@@ -213,43 +179,7 @@
       canvas.style.cursor = "grab";
     });
 
-    canvas.addEventListener("touchstart", (event) => {
-      if (event.touches.length === 1) {
-        isDragging = true;
-        dragStart = { x: event.touches[0].clientX, y: event.touches[0].clientY };
-      } else if (event.touches.length === 2) {
-        lastTouchDistance = Math.hypot(
-          event.touches[1].clientX - event.touches[0].clientX,
-          event.touches[1].clientY - event.touches[0].clientY
-        );
-      }
-    });
-
-    canvas.addEventListener("touchmove", (event) => {
-      event.preventDefault();
-      if (event.touches.length === 1 && isDragging) {
-        const touch = event.touches[0];
-        offsetX += (touch.clientX - dragStart.x) / scale;
-        offsetY += (touch.clientY - dragStart.y) / scale;
-        dragStart = { x: touch.clientX, y: touch.clientY };
-        drawGrid();
-      } else if (event.touches.length === 2) {
-        const newTouchDistance = Math.hypot(
-          event.touches[1].clientX - event.touches[0].clientX,
-          event.touches[1].clientY - event.touches[0].clientY
-        );
-        const zoomFactor = (newTouchDistance - lastTouchDistance) * 0.005;
-        scale += zoomFactor;
-        scale = Math.max(0.1, Math.min(scale, 10));
-        lastTouchDistance = newTouchDistance;
-        drawGrid();
-      }
-    });
-
-    canvas.addEventListener("touchend", () => {
-      isDragging = false;
-    });
-
+    // Handle click on canvas for selection
     canvas.addEventListener("click", (event) => {
       const x = Math.floor((event.offsetX / scale - offsetX) / pixelSize);
       const y = Math.floor((event.offsetY / scale - offsetY) / pixelSize);
@@ -276,6 +206,7 @@
       drawGrid();
     });
 
+    // Open modal to edit pixel
     function openModal() {
       modal.style.display = "flex";
       const keys = Array.from(selectedPixels);
@@ -289,6 +220,7 @@
       }
     }
 
+    // Save pixel data
     function savePixelData() {
       const imageUrl = imageUrlInput.value.trim();
       const linkUrl = linkUrlInput.value.trim();
@@ -299,23 +231,39 @@
       }
 
       const keys = Array.from(selectedPixels);
-      keys.forEach(async (key) => {
-        const docRef = doc(db, "pixels", key);
-        await setDoc(docRef, {
-          image: imageUrl,
-          link: linkUrl
-        });
+      const minX = Math.min(...keys.map((key) => parseInt(key.split(",")[0])));
+      const minY = Math.min(...keys.map((key) => parseInt(key.split(",")[1])));
+      const maxX = Math.max(...keys.map((key) => parseInt(key.split(",")[0])));
+      const maxY = Math.max(...keys.map((key) => parseInt(key.split(",")[1])));
+
+      keys.forEach((key) => {
+        pixelData[key] = { image: imageUrl, link: linkUrl };
       });
+
+      const img = new Image();
+      img.src = imageUrl;
+      img.onload = () => {
+        ctx.drawImage(
+          img,
+          (minX * pixelSize + offsetX) * scale,
+          (minY * pixelSize + offsetY) * scale,
+          (maxX - minX + 1) * pixelSize * scale,
+          (maxY - minY + 1) * pixelSize * scale
+        );
+        localStorage.setItem("pixelData", JSON.stringify(pixelData));
+      };
 
       modal.style.display = "none";
       drawGrid();
     }
 
+    // Delete pixel data
     function deletePixelData() {
-      selectedPixels.forEach(async (key) => {
-        const docRef = doc(db, "pixels", key);
-        await deleteDoc(docRef);
+      selectedPixels.forEach((key) => {
+        delete pixelData[key];
       });
+
+      localStorage.setItem("pixelData", JSON.stringify(pixelData));
 
       modal.style.display = "none";
       drawGrid();
@@ -323,32 +271,9 @@
 
     saveButton.addEventListener("click", savePixelData);
     deleteButton.addEventListener("click", deletePixelData);
-    resetButton.addEventListener("click", () => {
-      offsetX = 0;
-      offsetY = 0;
-      scale = 1;
-      drawGrid();
-    });
 
-    function syncWithFirestore() {
-      const colRef = collection(db, "pixels");
-      onSnapshot(colRef, (snapshot) => {
-        snapshot.docChanges().forEach((change) => {
-          const key = change.doc.id;
-          if (change.type === "added" || change.type === "modified") {
-            pixelData[key] = change.doc.data();
-          } else if (change.type === "removed") {
-            delete pixelData[key];
-          }
-        });
-        drawGrid();
-      });
-    }
-
-    syncWithFirestore();
+    // Initial setup
     resizeCanvas();
   </script>
 </body>
 </html>
-
-
